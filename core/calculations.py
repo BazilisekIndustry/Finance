@@ -37,24 +37,25 @@ def projection_for_period(
     period: FinancialPeriod,
     account_types: dict[str, AccountType] | None = None,
     snapshot_dates: dict[str, date] | None = None,
+    through_date: date | None = None,
 ) -> dict[str, AccountProjection]:
     best = dict(opening_balances)
     worst = dict(opening_balances)
     for income in incomes:
         occurrence = _event_occurrence(income.active, income.recurrence.value, income.due_date, period, income.effective_from, income.effective_to)
-        if occurrence and _after_snapshot(occurrence, income.account_id, snapshot_dates):
+        if occurrence and _within_horizon(occurrence, through_date) and _after_snapshot(occurrence, income.account_id, snapshot_dates):
             _require_account(best, income.account_id)
             _apply_delta(best, income.account_id, income.amount, account_types)
             _apply_delta(worst, income.account_id, income.amount, account_types)
     for expense in expenses:
         occurrence = _event_occurrence(expense.active, expense.recurrence.value, expense.due_date, period, expense.effective_from, expense.effective_to)
-        if occurrence and _after_snapshot(occurrence, expense.account_id, snapshot_dates):
+        if occurrence and _within_horizon(occurrence, through_date) and _after_snapshot(occurrence, expense.account_id, snapshot_dates):
             _require_account(best, expense.account_id)
             if not expense.is_reserve:
                 _apply_delta(best, expense.account_id, -expense.amount, account_types)
             _apply_delta(worst, expense.account_id, -expense.amount, account_types)
     for transfer in transfers:
-        if period.contains(transfer.transfer_date):
+        if period.contains(transfer.transfer_date) and _within_horizon(transfer.transfer_date, through_date):
             credit = transfer.target_amount if transfer.target_amount is not None else transfer.amount
             for scenario in (best, worst):
                 # Each leg has its own actual-state boundary. This prevents a transfer
@@ -90,6 +91,10 @@ def _apply_delta(balances: dict[str, Money], account_id: str, cash_delta: Money,
 
 def _after_snapshot(occurrence: date, account_id: str, snapshot_dates: dict[str, date] | None) -> bool:
     return snapshot_dates is None or account_id not in snapshot_dates or occurrence > snapshot_dates[account_id]
+
+
+def _within_horizon(occurrence: date, through_date: date | None) -> bool:
+    return through_date is None or occurrence <= through_date
 
 
 def _event_occurrence(active: bool, recurrence: str, due_date: date, period: FinancialPeriod, effective_from=None, effective_to=None) -> date | None:

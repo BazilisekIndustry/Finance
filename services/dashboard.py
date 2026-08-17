@@ -44,7 +44,8 @@ class DashboardService:
             return []
         opening = {item["id"]: Decimal(str(snapshots[item["id"]]["balance"])) for item in active}
         types = {item["id"]: AccountType(item["account_type"]) for item in active}
-        period = financial_period_for(today or date.today(), payday)
+        as_of = today or date.today()
+        period = financial_period_for(as_of, payday)
         snapshot_dates = {account_id: date.fromisoformat(item["snapshot_date"]) for account_id, item in snapshots.items()}
         projections = project_periods(opening, period, count, payday, self._incomes(incomes), self._expenses(expenses), self._transfers(transfers), account_types=types, snapshot_dates=snapshot_dates)
         result = []
@@ -61,7 +62,8 @@ class DashboardService:
         expenses: list[dict[str, Any]], transfers: list[dict[str, Any]], payday: int, investment_ratio: Decimal,
         today: date | None = None, latest_broker_snapshots: list[dict[str, Any]] | None = None,
     ) -> DashboardData:
-        period = financial_period_for(today or date.today(), payday)
+        as_of = today or date.today()
+        period = financial_period_for(as_of, payday)
         active = [item for item in accounts if item["is_active"]]
         cash_accounts = [item for item in active if item["account_type"] != AccountType.BROKER.value]
         snapshot_by_account = {item["account_id"]: item for item in latest_snapshots}
@@ -75,8 +77,13 @@ class DashboardService:
         types = {item["id"]: AccountType(item["account_type"]) for item in cash_accounts}
         snapshot_dates = {account_id: date.fromisoformat(item["snapshot_date"]) for account_id, item in snapshot_by_account.items()}
         projection = projection_for_period(opening, self._incomes(incomes), self._expenses(expenses), self._transfers(transfers), period, types, snapshot_dates)
+        realized_projection = projection_for_period(
+            opening, self._incomes(incomes), self._expenses(expenses), self._transfers(transfers),
+            period, types, snapshot_dates, through_date=as_of,
+        )
         best = self._available_total(cash_accounts, projection, snapshot_by_account, "best_case")
         worst = self._available_total(cash_accounts, projection, snapshot_by_account, "worst_case")
+        purchase_power = self._available_total(cash_accounts, realized_projection, snapshot_by_account, "worst_case")
         primary = next((item for item in cash_accounts if item["is_primary"]), None)
         invest = None
         if primary:
@@ -89,7 +96,7 @@ class DashboardService:
             for item in cash_accounts
             if item["account_type"] != AccountType.OVERDRAFT.value and projection[item["id"]].worst_case < 0
         }
-        return DashboardData(current_cash, best, worst, invest, current_cash, wealth, projection, (), shortages, period)
+        return DashboardData(current_cash, best, worst, invest, purchase_power, wealth, projection, (), shortages, period)
 
     @staticmethod
     def _account(raw: dict[str, Any]) -> Account:
