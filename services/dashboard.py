@@ -45,7 +45,8 @@ class DashboardService:
         opening = {item["id"]: Decimal(str(snapshots[item["id"]]["balance"])) for item in active}
         types = {item["id"]: AccountType(item["account_type"]) for item in active}
         period = financial_period_for(today or date.today(), payday)
-        projections = project_periods(opening, period, count, payday, self._incomes(incomes), self._expenses(expenses), self._transfers(transfers), account_types=types)
+        snapshot_dates = {account_id: date.fromisoformat(item["snapshot_date"]) for account_id, item in snapshots.items()}
+        projections = project_periods(opening, period, count, payday, self._incomes(incomes), self._expenses(expenses), self._transfers(transfers), account_types=types, snapshot_dates=snapshot_dates)
         result = []
         for item_period, projection in projections:
             result.append(CashFlowPoint(
@@ -72,7 +73,8 @@ class DashboardService:
 
         opening = {item["id"]: Decimal(str(snapshot_by_account[item["id"]]["balance"])) for item in cash_accounts}
         types = {item["id"]: AccountType(item["account_type"]) for item in cash_accounts}
-        projection = projection_for_period(opening, self._incomes(incomes), self._expenses(expenses), self._transfers(transfers), period, types)
+        snapshot_dates = {account_id: date.fromisoformat(item["snapshot_date"]) for account_id, item in snapshot_by_account.items()}
+        projection = projection_for_period(opening, self._incomes(incomes), self._expenses(expenses), self._transfers(transfers), period, types, snapshot_dates)
         best = self._available_total(cash_accounts, projection, snapshot_by_account, "best_case")
         worst = self._available_total(cash_accounts, projection, snapshot_by_account, "worst_case")
         primary = next((item for item in cash_accounts if item["is_primary"]), None)

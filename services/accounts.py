@@ -45,11 +45,14 @@ class AccountsService:
         if account_type == AccountType.OVERDRAFT:
             limit = Decimal(str(account["overdraft_limit"]))
             if balance > limit:
-                raise ValueError("Čerpání kontokorentu nesmí překročit jeho limit.")
+                raise ValueError("Dostupný kontokorent nesmí překročit jeho limit.")
         currency = validate_currency(account["currency"])
         return self.snapshots.create({
             "account_id": account["id"], "snapshot_date": snapshot_date.isoformat(),
-            "balance": str(balance), "currency": currency, "exchange_rate": str(exchange_rate),
+            # `balance` remains the common prediction value. For an overdraft it is
+            # explicitly the bank-facing available amount, never the drawn amount.
+            "balance": str(balance), "overdraft_available": str(balance) if account_type == AccountType.OVERDRAFT else None,
+            "currency": currency, "exchange_rate": str(exchange_rate),
             "balance_czk": str(to_czk(balance, exchange_rate)),
         })
 

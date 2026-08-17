@@ -11,12 +11,12 @@ class BalanceSnapshotsRepository(Repository):
 
     def list_for_account(self, account_id: str) -> list[dict[str, Any]]:
         return self.rows(
-            self.client.table(self.table).select("*").eq("account_id", account_id).eq("user_id", self.user_id()).order("snapshot_date", desc=True).execute()
+            self.client.table(self.table).select("*").eq("account_id", account_id).eq("user_id", self.user_id()).order("snapshot_date", desc=True).order("created_at", desc=True).execute()
         )
 
     def latest_by_account(self) -> list[dict[str, Any]]:
         # PostgreSQL grouping is deliberately avoided here; latest snapshot selection stays explicit and testable.
-        snapshots = self.rows(self.client.table(self.table).select("*").eq("user_id", self.user_id()).order("snapshot_date", desc=True).execute())
+        snapshots = self.rows(self.client.table(self.table).select("*").eq("user_id", self.user_id()).order("snapshot_date", desc=True).order("created_at", desc=True).execute())
         latest: dict[str, dict[str, Any]] = {}
         for snapshot in snapshots:
             latest.setdefault(snapshot["account_id"], snapshot)
@@ -33,4 +33,3 @@ class BalanceSnapshotsRepository(Repository):
         return self.rows(
             self.client.table(self.table).select("*").eq("user_id", self.user_id()).gte("snapshot_date", start.isoformat()).lte("snapshot_date", end.isoformat()).execute()
         )
-

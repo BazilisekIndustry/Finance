@@ -37,7 +37,9 @@ for each row execute function public.clear_previous_primary_account();
 create table public.balance_snapshots (
   id uuid primary key default gen_random_uuid(), user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   account_id uuid not null references public.accounts(id) on delete restrict, snapshot_date date not null,
-  balance numeric(14,2) not null, currency text not null check (currency in ('CZK','EUR','USD')),
+  -- For overdraft accounts balance and overdraft_available are the available credit
+  -- shown by the bank; the used amount is derived as limit - available.
+  balance numeric(14,2) not null, overdraft_available numeric(14,2), currency text not null check (currency in ('CZK','EUR','USD')),
   exchange_rate numeric(14,6) not null check (exchange_rate > 0), balance_czk numeric(14,2) not null,
   created_at timestamptz not null default now()
 );

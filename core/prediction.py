@@ -18,6 +18,7 @@ def project_periods(
     transfers: Iterable[Transfer],
     actual_snapshots: dict[date, dict[str, Money]] | None = None,
     account_types: dict[str, AccountType] | None = None,
+    snapshot_dates: dict[str, date] | None = None,
 ) -> list[tuple[FinancialPeriod, dict[str, AccountProjection]]]:
     """Projects consecutively; a snapshot dated in a period replaces the opening state for that period."""
     if count < 1:
@@ -32,7 +33,7 @@ def project_periods(
         if snapshots_in_period:
             _, current_opening = max(snapshots_in_period, key=lambda item: item[0])
             current_opening = dict(current_opening)
-        projection = projection_for_period(current_opening, income_list, expense_list, transfer_list, period, account_types)
+        projection = projection_for_period(current_opening, income_list, expense_list, transfer_list, period, account_types, snapshot_dates)
         result.append((period, projection))
         current_opening = {account_id: value.worst_case for account_id, value in projection.items()}
         period = period_after(period, payday)

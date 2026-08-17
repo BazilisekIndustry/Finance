@@ -3,7 +3,7 @@ from decimal import Decimal
 
 import pytest
 
-from core.calculations import investment_available, overdraft_available, projection_for_period
+from core.calculations import investment_available, overdraft_available, overdraft_used, projection_for_period
 from core.models import AccountType, PlannedExpense, PlannedIncome, RecurrenceType, Transfer
 from core.periods import financial_period_for
 
@@ -40,16 +40,17 @@ def test_transfer_preserves_total_in_same_currency():
 
 
 def test_overdraft_available_and_investment_floor():
-    assert overdraft_available(D("30000"), D("20000")) == D("10000")
-    assert overdraft_available(D("30000"), D("30000")) == D("0")
+    assert overdraft_available(D("30000"), D("20000")) == D("20000")
+    assert overdraft_used(D("30000"), D("20000")) == D("10000")
+    assert overdraft_used(D("30000"), D("0")) == D("30000")
     assert investment_available(D("100000"), D("0.70")) == D("70000")
     assert investment_available(D("-100"), D("0.70")) == D("0")
 
 
-def test_overdraft_projection_tracks_draw_not_negative_balance():
+def test_overdraft_projection_tracks_available_credit():
     overdraft_expense = PlannedExpense("overdraft", D("5000"), "CZK", date(2026, 8, 20), RecurrenceType.ONE_OFF)
     result = projection_for_period({"overdraft": D("20000")}, [], [overdraft_expense], [], PERIOD, {"overdraft": AccountType.OVERDRAFT})
-    assert result["overdraft"].worst_case == D("25000")
+    assert result["overdraft"].worst_case == D("15000")
 
 
 def test_unknown_account_is_not_silently_accepted():

@@ -40,6 +40,7 @@ class BalanceSnapshot:
     balance: Money
     currency: str
     exchange_rate: Money
+    overdraft_available: Optional[Money] = None
 
 
 @dataclass(frozen=True)

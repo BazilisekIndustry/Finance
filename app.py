@@ -88,9 +88,17 @@ def _app_shell(tokens: SessionTokens) -> None:
             if account["id"] not in data.projections:
                 continue
             projection = data.projections[account["id"]]
-            rows.append({"Účet": account["name"], "Aktuálně": latest[account["id"]]["balance"], "Best": projection.best_case, "Worst": projection.worst_case, "Měna": account["currency"]})
+            current = latest[account["id"]]
+            current_balance = current.get("overdraft_available", current["balance"]) if account["account_type"] == "overdraft" else current["balance"]
+            rows.append({"Účet": account["name"], "Aktuálně": current_balance, "Best": projection.best_case, "Worst": projection.worst_case, "Měna": account["currency"]})
         st.subheader("Účty")
         st.dataframe(rows, hide_index=True, use_container_width=True)
+        snapshot_labels = [
+            f"{account['name']} – aktualizováno {date.fromisoformat(latest[account['id']]['snapshot_date']).day}. {date.fromisoformat(latest[account['id']]['snapshot_date']).month}. {date.fromisoformat(latest[account['id']]['snapshot_date']).year}"
+            for account in accounts if account["id"] in data.projections and latest[account["id"]].get("snapshot_date")
+        ]
+        if snapshot_labels:
+            st.info("Predikce aktualizována podle skutečných zůstatků: " + "; ".join(snapshot_labels))
         horizon = st.select_slider("Horizont cash-flow predikce", options=[1, 2, 3, 6, 12], value=3, format_func=lambda item: f"{item} období")
         forecast = DashboardService().cash_flow_forecast(
             accounts=accounts, latest_snapshots=snapshots, incomes=IncomesRepository(client).list(),

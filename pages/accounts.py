@@ -93,7 +93,7 @@ for account in active_accounts:
     snapshot = latest.get(account["id"])
     displayed_balance = snapshot["balance"] if snapshot else "—"
     if account["account_type"] == AccountType.OVERDRAFT.value and snapshot:
-        displayed_balance = f"čerpání {displayed_balance} {account['currency']}"
+        displayed_balance = f"dostupné {snapshot.get('overdraft_available', displayed_balance)} {account['currency']}"
     table_rows.append({
         "Účet": account["name"], "Typ": account["account_type"], "Měna": account["currency"],
         "Aktuální stav": displayed_balance, "Hlavní": "Ano" if account["is_primary"] else "",
@@ -104,7 +104,7 @@ st.subheader("Zapsat skutečný zůstatek")
 labels = {f"{account['name']} ({account['currency']})": account for account in active_accounts}
 selected_label = st.selectbox("Účet", list(labels))
 selected = labels[selected_label]
-balance_label = "Aktuální čerpání" if selected["account_type"] == AccountType.OVERDRAFT.value else "Aktuální zůstatek"
+balance_label = "Dostupný kontokorent" if selected["account_type"] == AccountType.OVERDRAFT.value else "Aktuální zůstatek"
 with st.form("record_snapshot", clear_on_submit=True):
     snapshot_date = st.date_input("Datum snapshotu", value=date.today())
     balance = st.number_input(balance_label, min_value=0.0, step=1000.0)
