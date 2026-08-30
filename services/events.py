@@ -4,7 +4,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
-from core.models import RecurrenceType
+from core.models import ExpenseKind, RecurrenceType
 from core.validation import positive_decimal, validate_currency
 from database.repositories import AccountsRepository, ExpensesRepository, IncomesRepository
 
@@ -16,12 +16,14 @@ class EventsService:
 
     def create(
         self, *, description: str, amount: Decimal, currency: str, account: dict[str, Any], due_date: date,
-        recurrence: str, is_reserve: bool = False,
+        recurrence: str, is_reserve: bool = False, expense_kind: str = "fixed",
     ) -> dict[str, Any]:
         if not description.strip():
             raise ValueError("Popis je povinný.")
         positive_decimal(amount, "Částka")
         recurrence_type = RecurrenceType(recurrence)
+        if self.repository.table == "expenses" and ExpenseKind(expense_kind) == ExpenseKind.CONTINUOUS and recurrence_type != RecurrenceType.RECURRING:
+            raise ValueError("Průběžný výdaj musí být pravidelný, protože představuje rozpočet pro finanční období.")
         event_currency = validate_currency(currency)
         if event_currency != account["currency"]:
             raise ValueError("Měna příjmu či výdaje musí odpovídat měně cílového účtu.")
@@ -32,6 +34,7 @@ class EventsService:
         }
         if self.repository.table == "expenses":
             payload["is_reserve"] = is_reserve
+            payload["expense_kind"] = ExpenseKind(expense_kind).value
         return self.repository.create(payload)
 
     def replace_recurring_amount(self, event: dict[str, Any], new_amount: Decimal, effective_from: date) -> dict[str, Any]:
@@ -47,5 +50,5 @@ class EventsService:
         clone.update({"amount": str(new_amount), "is_active": True, "effective_from": effective_from.isoformat(), "effective_to": None})
         if self.repository.table == "expenses":
             clone["is_reserve"] = event["is_reserve"]
+            clone["expense_kind"] = event.get("expense_kind", "fixed")
         return self.repository.create(clone)
-

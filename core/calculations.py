@@ -5,7 +5,7 @@ from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 
-from .models import Account, AccountProjection, AccountType, Money, PlannedExpense, PlannedIncome, Transfer
+from .models import Account, AccountProjection, AccountType, ExpenseKind, Money, PlannedExpense, PlannedIncome, Transfer
 from .periods import FinancialPeriod
 
 
@@ -49,7 +49,15 @@ def projection_for_period(
             _apply_delta(worst, income.account_id, income.amount, account_types)
     for expense in expenses:
         occurrence = _event_occurrence(expense.active, expense.recurrence.value, expense.due_date, period, expense.effective_from, expense.effective_to)
-        if occurrence and _within_horizon(occurrence, through_date) and _after_snapshot(occurrence, expense.account_id, snapshot_dates):
+        if expense.expense_kind == ExpenseKind.CONTINUOUS:
+            amount = _continuous_amount(expense, period, snapshot_dates.get(expense.account_id) if snapshot_dates else None, through_date)
+            if amount <= 0:
+                continue
+            _require_account(best, expense.account_id)
+            if not expense.is_reserve:
+                _apply_delta(best, expense.account_id, -amount, account_types)
+            _apply_delta(worst, expense.account_id, -amount, account_types)
+        elif occurrence and _within_horizon(occurrence, through_date) and _after_snapshot(occurrence, expense.account_id, snapshot_dates):
             _require_account(best, expense.account_id)
             if not expense.is_reserve:
                 _apply_delta(best, expense.account_id, -expense.amount, account_types)
@@ -95,6 +103,28 @@ def _after_snapshot(occurrence: date, account_id: str, snapshot_dates: dict[str,
 
 def _within_horizon(occurrence: date, through_date: date | None) -> bool:
     return through_date is None or occurrence <= through_date
+
+
+def _continuous_amount(expense: PlannedExpense, period: FinancialPeriod, snapshot_date: date | None, through_date: date | None) -> Money:
+    """Budget only the part of a continuous expense inside the requested date window."""
+    if not expense.active or period.end < (expense.effective_from or expense.due_date):
+        return Decimal("0")
+    if expense.effective_to is not None and period.start > expense.effective_to:
+        return Decimal("0")
+    start = max(period.start, expense.effective_from or expense.due_date)
+    if snapshot_date is not None:
+        from datetime import timedelta
+        start = max(start, snapshot_date + timedelta(days=1))
+    end = period.end
+    if through_date is not None:
+        end = min(end, through_date)
+    if expense.effective_to is not None:
+        end = min(end, expense.effective_to)
+    if end < start:
+        return Decimal("0")
+    total_days = Decimal(str((period.end - period.start).days + 1))
+    covered_days = Decimal(str((end - start).days + 1))
+    return expense.amount * covered_days / total_days
 
 
 def _event_occurrence(active: bool, recurrence: str, due_date: date, period: FinancialPeriod, effective_from=None, effective_to=None) -> date | None:

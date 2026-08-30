@@ -62,7 +62,7 @@ create table public.expenses (
   account_id uuid not null references public.accounts(id) on delete restrict, description text not null,
   amount numeric(14,2) not null check (amount > 0), currency text not null check (currency in ('CZK','EUR','USD')),
   due_date date not null, recurrence text not null check (recurrence in ('one_off','recurring')), is_reserve boolean not null default false,
-  effective_from date not null, effective_to date, check (effective_to is null or effective_to >= effective_from),
+  effective_from date not null, effective_to date, expense_kind text not null default 'fixed' check (expense_kind in ('fixed', 'continuous')), check (effective_to is null or effective_to >= effective_from),
   is_active boolean not null default true, created_at timestamptz not null default now(), updated_at timestamptz not null default now()
 );
 create index expenses_user_active_date_idx on public.expenses(user_id, is_active, due_date);

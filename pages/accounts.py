@@ -100,6 +100,32 @@ for account in active_accounts:
     })
 st.dataframe(pd.DataFrame(table_rows), hide_index=True, use_container_width=True)
 
+all_snapshots = []
+for account in active_accounts:
+    all_snapshots.extend(snapshots_repository.list_for_account(account["id"]))
+if all_snapshots:
+    by_snapshot = {f"{next(account['name'] for account in active_accounts if account['id'] == item['account_id'])} — {item['snapshot_date']} ({item['balance']} {item['currency']})": item for item in all_snapshots}
+    with st.expander("Opravit nebo smazat snapshot"):
+        selected_snapshot_label = st.selectbox("Historický snapshot", list(by_snapshot), key="manage_snapshot")
+        selected_snapshot = by_snapshot[selected_snapshot_label]
+        snapshot_account = next(account for account in active_accounts if account["id"] == selected_snapshot["account_id"])
+        with st.form("edit_snapshot"):
+            corrected_date = st.date_input("Datum snapshotu", value=date.fromisoformat(selected_snapshot["snapshot_date"]), key="corrected_snapshot_date")
+            corrected_balance = st.number_input("Dostupný kontokorent" if snapshot_account["account_type"] == "overdraft" else "Skutečný zůstatek", min_value=0.0, value=float(selected_snapshot["balance"]), step=1000.0)
+            corrected_rate = st.number_input("Kurz do CZK", min_value=0.000001, value=float(selected_snapshot["exchange_rate"]), format="%.6f", key="corrected_snapshot_rate")
+            update_snapshot = st.form_submit_button("Uložit opravu")
+        if update_snapshot:
+            try:
+                service.update_snapshot(snapshot=selected_snapshot, account=snapshot_account, snapshot_date=corrected_date, balance=Decimal(str(corrected_balance)), exchange_rate=Decimal(str(corrected_rate)))
+                st.success("Snapshot byl opraven a predikce bude přepočítána.")
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+        if st.button("Smazat vybraný snapshot", key="delete_snapshot"):
+            service.delete_snapshot(selected_snapshot["id"])
+            st.success("Snapshot byl smazán; predikce nyní použije předchozí dostupný stav.")
+            st.rerun()
+
 st.subheader("Zapsat skutečný zůstatek")
 labels = {f"{account['name']} ({account['currency']})": account for account in active_accounts}
 selected_label = st.selectbox("Účet", list(labels))

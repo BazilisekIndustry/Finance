@@ -29,6 +29,15 @@ class BalanceSnapshotsRepository(Repository):
             raise ValueError(f"Snapshotu chybí povinná pole: {', '.join(sorted(missing))}")
         return self.rows(self.client.table(self.table).insert(self.own(payload)).execute())[0]
 
+    def update(self, snapshot_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        rows = self.rows(self.client.table(self.table).update(payload).eq("id", snapshot_id).eq("user_id", self.user_id()).execute())
+        if not rows:
+            raise LookupError("Snapshot nebyl nalezen nebo k němu nemáte přístup.")
+        return rows[0]
+
+    def delete(self, snapshot_id: str) -> None:
+        self.client.table(self.table).delete().eq("id", snapshot_id).eq("user_id", self.user_id()).execute()
+
     def history_between(self, start: date, end: date) -> list[dict[str, Any]]:
         return self.rows(
             self.client.table(self.table).select("*").eq("user_id", self.user_id()).gte("snapshot_date", start.isoformat()).lte("snapshot_date", end.isoformat()).execute()

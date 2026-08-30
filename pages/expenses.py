@@ -28,19 +28,22 @@ with st.form("expense_form", clear_on_submit=True):
     selected = st.selectbox("Účet", list(labels))
     due_date = st.date_input("Datum splatnosti", value=date.today())
     recurrence = st.radio("Typ", ["one_off", "recurring"], format_func=lambda x: "Jednorázový" if x == "one_off" else "Pravidelný", horizontal=True)
+    expense_kind = st.radio("Charakter", ["fixed", "continuous"], format_func=lambda x: "Pevný" if x == "fixed" else "Průběžný (rovnoměrně za období)", horizontal=True)
     reserve = st.checkbox("Rezervní výdaj (pouze Worst Case)")
     submit = st.form_submit_button("Uložit výdaj", type="primary")
 if submit:
     try:
         account = labels[selected]
-        service.create(description=description, amount=Decimal(str(amount)), currency=account["currency"], account=account, due_date=due_date, recurrence=recurrence, is_reserve=reserve)
+        service.create(description=description, amount=Decimal(str(amount)), currency=account["currency"], account=account, due_date=due_date, recurrence=recurrence, is_reserve=reserve, expense_kind=expense_kind)
         st.success("Výdaj byl uložen.")
         st.rerun()
     except ValueError as exc:
         st.error(str(exc))
 items = repository.list()
 if items:
-    st.dataframe(pd.DataFrame(items)[["description", "amount", "currency", "due_date", "recurrence", "is_reserve", "is_active"]], hide_index=True, use_container_width=True)
+    frame = pd.DataFrame(items)
+    columns = ["description", "amount", "currency", "due_date", "recurrence", "expense_kind", "is_reserve", "is_active"]
+    st.dataframe(frame[[column for column in columns if column in frame]], hide_index=True, use_container_width=True)
     active_items = [item for item in items if item["is_active"]]
     if active_items:
         labels_manage = {f"{item['description']} — {item['amount']} {item['currency']} ({item['due_date']})": item for item in active_items}

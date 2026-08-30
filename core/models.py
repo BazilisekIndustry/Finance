@@ -23,6 +23,11 @@ class RecurrenceType(str, Enum):
     RECURRING = "recurring"
 
 
+class ExpenseKind(str, Enum):
+    FIXED = "fixed"
+    CONTINUOUS = "continuous"
+
+
 @dataclass(frozen=True)
 class Account:
     id: str
@@ -66,6 +71,7 @@ class PlannedExpense:
     active: bool = True
     effective_from: Optional[date] = None
     effective_to: Optional[date] = None
+    expense_kind: ExpenseKind = ExpenseKind.FIXED
 
 
 @dataclass(frozen=True)

@@ -54,7 +54,9 @@ def _app_shell(tokens: SessionTokens) -> None:
     try:
         client = authenticated_client(tokens, st.secrets)
         accounts = AccountsRepository(client).list(include_inactive=True)
-        snapshots = BalanceSnapshotsRepository(client).latest_by_account()
+        balance_repository = BalanceSnapshotsRepository(client)
+        snapshots = balance_repository.latest_by_account()
+        snapshot_history = balance_repository.history_between(date(2000, 1, 1), date(2100, 1, 1))
         broker_snapshots = BrokerSnapshotsRepository(client).latest_by_account()
         settings = SettingsRepository(client).get_or_create()
         data = DashboardService().build(
@@ -62,6 +64,7 @@ def _app_shell(tokens: SessionTokens) -> None:
             incomes=IncomesRepository(client).list(), expenses=ExpensesRepository(client).list(),
             transfers=TransfersRepository(client).list_between(date(2000, 1, 1), date(2100, 1, 1)),
             payday=int(settings["payday"]), investment_ratio=Decimal(str(settings["investment_ratio"])),
+            snapshot_history=snapshot_history,
         )
     except Exception:
         st.error("Dashboard se nepodařilo načíst. Ověřte Supabase konfiguraci a spuštění migrace.")
@@ -75,6 +78,11 @@ def _app_shell(tokens: SessionTokens) -> None:
     cards[3].metric("Pro investice", czk(data.investment_available_czk))
     cards[4].metric("Kupní síla", czk(data.purchase_power_czk))
     cards[5].metric("Celkové bohatství", czk(data.total_wealth_czk))
+    analytic_cards = st.columns(4)
+    analytic_cards[0].metric("Broker", czk(data.broker_value_czk))
+    analytic_cards[1].metric("Odchylka od plánu", czk(data.plan_variance_czk), delta=czk(data.plan_variance_czk) if data.plan_variance_czk is not None else None, delta_color="normal")
+    analytic_cards[2].metric("Oproti minulému období", czk(data.previous_period_delta_czk), delta=czk(data.previous_period_delta_czk) if data.previous_period_delta_czk is not None else None, delta_color="normal")
+    analytic_cards[3].metric("Trend (další období)", czk(data.forecast_trend_czk), delta=czk(data.forecast_trend_czk) if data.forecast_trend_czk is not None else None, delta_color="normal")
     if data.missing_snapshot_accounts:
         st.warning("Chybí skutečný snapshot pro: " + ", ".join(data.missing_snapshot_accounts) + ". Predikce proto není zobrazena.")
     if not any(item["is_primary"] and item["is_active"] for item in accounts):
@@ -99,6 +107,9 @@ def _app_shell(tokens: SessionTokens) -> None:
         ]
         if snapshot_labels:
             st.info("Predikce aktualizována podle skutečných zůstatků: " + "; ".join(snapshot_labels))
+            stale = [f"{account['name']} ({(date.today() - date.fromisoformat(latest[account['id']]['snapshot_date'])).days} dní)" for account in accounts if account["id"] in data.projections and (date.today() - date.fromisoformat(latest[account['id']]['snapshot_date'])).days > 0]
+            if stale:
+                st.caption("Stáří posledního snapshotu: " + ", ".join(stale))
         horizon = st.select_slider("Horizont cash-flow predikce", options=[1, 2, 3, 6, 12], value=3, format_func=lambda item: f"{item} období")
         forecast = DashboardService().cash_flow_forecast(
             accounts=accounts, latest_snapshots=snapshots, incomes=IncomesRepository(client).list(),

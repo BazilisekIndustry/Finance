@@ -56,6 +56,27 @@ class AccountsService:
             "balance_czk": str(to_czk(balance, exchange_rate)),
         })
 
+    def update_snapshot(
+        self, *, snapshot: dict[str, Any], account: dict[str, Any], snapshot_date: date, balance: Decimal, exchange_rate: Decimal,
+    ) -> dict[str, Any]:
+        """Correct a historical actual balance without changing its account."""
+        if snapshot["account_id"] != account["id"]:
+            raise ValueError("Účet snapshotu nelze změnit.")
+        non_negative_decimal(balance, "Zůstatek")
+        positive_decimal(exchange_rate, "Kurz")
+        account_type = AccountType(account["account_type"])
+        if account_type == AccountType.OVERDRAFT and balance > Decimal(str(account["overdraft_limit"])):
+            raise ValueError("Dostupný kontokorent nesmí překročit jeho limit.")
+        payload = {
+            "snapshot_date": snapshot_date.isoformat(), "balance": str(balance),
+            "overdraft_available": str(balance) if account_type == AccountType.OVERDRAFT else None,
+            "exchange_rate": str(exchange_rate), "balance_czk": str(to_czk(balance, exchange_rate)),
+        }
+        return self.snapshots.update(snapshot["id"], payload)
+
+    def delete_snapshot(self, snapshot_id: str) -> None:
+        self.snapshots.delete(snapshot_id)
+
     def update_account(self, account: dict[str, Any], *, name: str, institution: str | None, is_primary: bool, overdraft_limit: Decimal) -> dict[str, Any]:
         if not name.strip():
             raise ValueError("Název účtu je povinný.")

@@ -7,9 +7,8 @@ from typing import Any
 
 import numpy as np
 
-from core.calculations import cash_available
 from core.currency import to_czk
-from core.models import Account, AccountType
+from core.models import AccountType
 from core.periods import FinancialPeriod, financial_period_for
 
 
@@ -61,8 +60,10 @@ class StatisticsService:
             total = Decimal("0")
             for raw in accounts:
                 snapshot = latest[raw["id"]]
-                account = Account(raw["id"], raw["name"], raw["currency"], AccountType(raw["account_type"]), raw["is_primary"], Decimal(str(raw["overdraft_limit"])))
-                total += to_czk(cash_available(account, Decimal(str(snapshot["balance"]))), Decimal(str(snapshot["exchange_rate"])))
+                # Credit availability is not historical cash; it is shown only in
+                # purchase power and never makes the cash-history graph larger.
+                if raw["account_type"] != AccountType.OVERDRAFT.value:
+                    total += to_czk(max(Decimal("0"), Decimal(str(snapshot["balance"]))), Decimal(str(snapshot["exchange_rate"])))
             points.append(HistoricalPoint(period, total))
         return points
 
